@@ -16,6 +16,9 @@ PROG_BUFFER     = 0x1000000
 PROG_PROGRESS   = 0x0088
 PROG_LENGTH     = 0x008C
 PROG_LOCATION   = 0x0090
+DUT_TO_TESTER   = 0x0094
+TESTER_TO_DUT	= 0x0098
+TEST_STATUS		= 0x009C
 
 XILINX_USER1    = 0x02
 XILINX_USER2    = 0x03
@@ -29,6 +32,8 @@ XILINX_SHUTDOWN = 0x0D
 XILINX_EXTEST   = 0x26
 XILINX_CFG_IN   = 0x05
 XILINX_CFG_OUT  = 0x04
+XILINX_FUSE_DNA = 0x32
+XILINX_FUSE_DNA2 = 0x17
 
 class JtagClientException(Exception):
     pass
@@ -41,6 +46,11 @@ class JtagClient:
         self.jtag.configure(url)
         self.jtag.reset()
         self._reverse = None
+
+    @staticmethod
+    def add_log_handler(ch):
+        global logger
+        logger.addHandler(ch)
 
     def jtag_clocks(self, clocks):
         cmd = bytearray(3)
@@ -62,6 +72,15 @@ class JtagClient:
         self.jtag.go_idle()
         logger.info(f"IDCODE (reset): {int(idcode):08x}")
         return int(idcode)
+
+    def xilinx_read_dna(self):
+        self.jtag.reset()
+        self.jtag.go_idle()
+        self.jtag.write_ir(BitSequence(XILINX_FUSE_DNA, False, 6))
+        dna = self.jtag.read_dr(64)
+        self.jtag.go_idle()
+        logger.info(f"DNA CODE (0x32): {int(dna):16x}")
+        return int(dna)
 
     def bitreverse(self, bytes):
         result = bytearray(len(bytes))
@@ -347,18 +366,29 @@ class JtagClient:
         self.user_write_int32(PROG_LENGTH, int(file_size.st_size))
         self.user_write_int32(PROG_LOCATION, addr)
 
-        self.user_write_int32(TESTER_TO_DUT, 12)
-        while self.user_read_int32(TESTER_TO_DUT) == 12 and max_time > 0:
+        self.user_write_int32(TESTER_TO_DUT, 50)
+        while self.user_read_int32(TESTER_TO_DUT) == 50 and max_time > 0:
             time.sleep(.1)
             if self.flash_callback:
                 progress = 100 * self.user_read_int32(PROG_PROGRESS)
                 self.flash_callback(progress/pages)
             max_time -= 1
 
-        if self.user_read_int32(TESTER_TO_DUT) == 12:
+        if self.user_read_int32(TESTER_TO_DUT) == 50:
             raise JtagClientException("Test did not complete in time.")
 
         text = self.user_read_console(True)
+        result = self.user_read_int32(TEST_STATUS)
+        return (result, text)
+
+    def perform_test(self, test_id, max_time = 10):
+        self.user_write_int32(TESTER_TO_DUT, test_id)
+        while self.user_read_int32(TESTER_TO_DUT) == test_id and max_time > 0:
+            time.sleep(.2)
+            max_time -= 1
+        if self.user_read_int32(TESTER_TO_DUT) == test_id:
+            raise JtagClientException("Test did not complete in time.")
+        text = self.user_read_console()
         result = self.user_read_int32(TEST_STATUS)
         return (result, text)
 
