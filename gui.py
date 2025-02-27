@@ -87,23 +87,26 @@ class MyGui:
             else:
                 self.functions[name] = (func, name[9:])
 
-        self.after['test_001_regulators'] = self.UpdateVoltages
-        self.after['test_000_boot_current'] = self.UpdateCurrent
-        self.after['test_019_unique_id'] = self.UpdateUniqueId
-        self.after['test_018_frequencies'] = self.UpdateOscillator
-        self.after['test_020_board_revision'] = self.UpdateBoardRevision
+        self.after['test_008_get_voltages'] = self.UpdateVoltages
+        self.after['test_001_unique_id'] = self.UpdateUniqueId
+        self.after['test_003_board_revision'] = self.UpdateBoardRevision
+        self.testsuite.esp_callback = self.FlashUpdateESP32
 
-    def FlashUpdateFPGA(self, val):
+    def FlashUpdateESP32(self, val):
         self.progress[0]['value'] = val
         self.progress[0].update()
 
-    def FlashUpdateAppl(self, val):
+    def FlashUpdateFPGA(self, val):
         self.progress[1]['value'] = val
         self.progress[1].update()
 
-    def FlashUpdateFAT(self, val):
+    def FlashUpdateAppl(self, val):
         self.progress[2]['value'] = val
         self.progress[2].update()
+
+    def FlashUpdateFAT(self, val):
+        self.progress[3]['value'] = val
+        self.progress[3].update()
 
     def StartButtonClick(self, param):
         self.window.after(10, self.ExecuteTests)
@@ -198,29 +201,19 @@ class MyGui:
                         break
 
         # If all tests are successful, the board can be flashed
-        if self.errors == 330: ## zero!
-            if not self.flash_tester.get():
-                self.testsuite.program_flash([self.FlashUpdateFPGA, self.FlashUpdateAppl, self.FlashUpdateFAT])
-                self.flashed = "Yes"
-            else:
-                self.testsuite.program_tester(self.FlashUpdateFPGA)
-                self.flashed = "SlotTester"
+        if self.errors == 0: ## zero!
+            self.testsuite.program_flash([self.FlashUpdateFPGA, self.FlashUpdateAppl, self.FlashUpdateFAT])
+            self.flashed = "Yes"
 
-            if not self.flash_tester.get():
-                self.boot_ok = self.testsuite.late_099_boot()
-                self.testsuite.dut_off()            
-                if not self.boot_ok:
-                    self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_fail)
-                    self.textbox.insert(tk.END, "\n!!! BOARD DOESN'T BOOT !!!\n\n")
-                    messagebox.showerror("Reject", "Board doesn't boot correctly after Flashing.")
-                else:
-                    self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_pass)
-                    self.textbox.insert(tk.END, "\n*** BOARD SUCCESSFULLY TESTED AND PROGRAMMED! ***\n\n")
+            self.boot_ok = self.testsuite.late_099_boot()
+            self.testsuite.dut_off()            
+            if not self.boot_ok:
+                self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_fail)
+                self.textbox.insert(tk.END, "\n!!! BOARD DOESN'T BOOT !!!\n\n")
+                messagebox.showerror("Reject", "Board doesn't boot correctly after Flashing.")
             else:
-                self.textbox.insert(tk.END, "\n*********************************************\n")
-                self.textbox.insert(tk.END, "\n*** BOARD TESTED AS U64II FACTORY TESTER! ***\n")
-                self.textbox.insert(tk.END, "\n*********************************************\n\n")
-
+                self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_pass)
+                self.textbox.insert(tk.END, "\n*** BOARD SUCCESSFULLY TESTED AND PROGRAMMED! ***\n\n")
         else:
             self.testsuite.dut_off()            
             messagebox.showerror("Reject", "Board has not been programmed due to errors.")
@@ -228,7 +221,6 @@ class MyGui:
         self.testsuite.dut_off()            
         self.textbox.see(tk.END)
         self.window.update()
-        self.testsuite.shutdown()
         self.write_test_to_db()
         self.start_button.configure(state = 'normal')
 
@@ -284,27 +276,27 @@ class MyGui:
         self.start_button.bind('<Button-1>', self.StartButtonClick)
 
         self.textbox = tkscrolled.ScrolledText(self.window, width = 80, height = 20, wrap='word')
-        self.textbox.grid(column = 0, row = 1, padx = 8, pady = 8, sticky="nsew", rowspan = 3)
+        self.textbox.grid(column = 0, row = 1, padx = 8, pady = 8, sticky="nsew", rowspan = 4)
 
         self.progress_frame = tk.Frame(self.window)
         self.progress = []
         self.progress.append(ttk.Progressbar(self.progress_frame, orient = 'horizontal', mode = 'determinate', length = 500))
         self.progress.append(ttk.Progressbar(self.progress_frame, orient = 'horizontal', mode = 'determinate', length = 500))
         self.progress.append(ttk.Progressbar(self.progress_frame, orient = 'horizontal', mode = 'determinate', length = 500))
+        self.progress.append(ttk.Progressbar(self.progress_frame, orient = 'horizontal', mode = 'determinate', length = 500))
         self.progress[0].grid(column = 1, row = 0, pady = 4)
         self.progress[1].grid(column = 1, row = 1, pady = 4)
         self.progress[2].grid(column = 1, row = 2, pady = 4)
+        self.progress[3].grid(column = 1, row = 3, pady = 4)
         self.flash_tester = tk.IntVar()
-        tk.Checkbutton(self.window, text = "Flash U64 Cart Tester", var = self.flash_tester).grid(column = 1, row = 2, sticky=tk.W)
-        tk.Label(self.progress_frame, text = "Flashing FPGA Bitfile", anchor = 'w').grid(column = 0, row = 0, sticky = tk.W, padx = 10)
-        tk.Label(self.progress_frame, text = "Flashing Application", anchor = 'w').grid(column = 0, row = 1, sticky = tk.W, padx = 10)
-        tk.Label(self.progress_frame, text = "Flashing FAT FileSystem", anchor = 'w').grid(column = 0, row = 2, sticky = tk.W, padx = 10)
+        tk.Label(self.progress_frame, text = "Flashing ESP32", anchor = 'w').grid(column = 0, row = 0, sticky = tk.W, padx = 10)
+        tk.Label(self.progress_frame, text = "Flashing FPGA Bitfile", anchor = 'w').grid(column = 0, row = 1, sticky = tk.W, padx = 10)
+        tk.Label(self.progress_frame, text = "Flashing Application", anchor = 'w').grid(column = 0, row = 2, sticky = tk.W, padx = 10)
+        tk.Label(self.progress_frame, text = "Flashing FAT FileSystem", anchor = 'w').grid(column = 0, row = 3, sticky = tk.W, padx = 10)
         self.progress_frame.grid(columnspan = 3, column = 1, row = 2, padx = 10, pady = 5)
 
-        self.stats = InfoFields(self.window, ["Serial #", "Tester Supply", "Boot Current", "+5.0V", "+4.3V", "+3.3V", "+2.5V", "+1.8V",
-                                              "+1.1V", "+0.9V", "Flash ID",
-                                              "FPGA ID", "Lot #", "Wafer #", "X / Y / Step",
-                                              "Ref. Clock", "Oscillator", "Board Revision"], 1, 1, 14, 20)
+        self.stats = InfoFields(self.window, ["Serial #", "FPGA ID", "Flash ID", "Board Revision", "Supply", "+5.0V", "+3.3V", "+1.8V",
+                                              "+1.0V", "Vaux", "Vusb" ], 1, 1, 14, 20)
 
         ch = TextboxLogHandler(self.textbox)
         ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(message)s'))
@@ -321,23 +313,15 @@ class MyGui:
     def run(self):
         self.window.mainloop()
 
-    def UpdateCurrent(self):
-        self.stats.set('Tester Supply', f'{self.testsuite.supply:.2f} V')
-        self.stats.set('Boot Current', f'{self.testsuite.current:.0f} mA')
-
     def UpdateVoltages(self):
-        self.stats.set('+5.0V', self.testsuite.voltages[0])
-        self.stats.set('+4.3V', self.testsuite.voltages[1])
-        self.stats.set('+3.3V', self.testsuite.voltages[2])
-        self.stats.set('+2.5V', self.testsuite.voltages[3])
+        self.stats.set('Supply', self.testsuite.voltages[0])
+        self.stats.set('Vaux', self.testsuite.voltages[1])
+        self.stats.set('+5.0V', self.testsuite.voltages[2])
+        self.stats.set('+3.3V', self.testsuite.voltages[3])
         self.stats.set('+1.8V', self.testsuite.voltages[4])
-        self.stats.set('+1.1V', self.testsuite.voltages[5])
-        self.stats.set('+0.9V', self.testsuite.voltages[6])
+        self.stats.set('+1.0V', self.testsuite.voltages[5])
+        self.stats.set('Vusb', self.testsuite.voltages[6])
 
-    def UpdateOscillator(self):
-        self.stats.set('Ref. Clock', f'{self.testsuite.refclk:.6f} MHz')
-        self.stats.set('Oscillator', f'{self.testsuite.osc:.6f} MHz')
-        
     def UpdateUniqueId(self):
         fpga_id_string = f'{self.testsuite.unique:016X}'
         self.stats.set('FPGA ID', fpga_id_string)
@@ -381,24 +365,21 @@ class MyGui:
         # Write statistiscs to stats table
         self.db.add_test_results({
             'serial': self.serial,
+            'flash_id': f'{self.testsuite.flashid:016X}',
+            'fpga_id': f'{self.testsuite.unique:016X}',
             'date': time,
-            'supply': Decimal(f'{self.testsuite.supply:.2f}'),
-            'bootcurr': Decimal(f'{self.testsuite.current:.1f}'),
-            'v50': self.testsuite.voltages[0][:-2],
-            'v43': self.testsuite.voltages[1][:-2],
-            'v33': self.testsuite.voltages[2][:-2],
-            'v25': self.testsuite.voltages[3][:-2],
+            'vbus': self.testsuite.voltages[0][:-2],
+            'vaux': self.testsuite.voltages[1][:-2],
+            'vusb': self.testsuite.voltages[6][:-2],
+            'v50': self.testsuite.voltages[2][:-2],
+            'v33': self.testsuite.voltages[3][:-2],
             'v18': self.testsuite.voltages[4][:-2],
-            'v11': self.testsuite.voltages[5][:-2],
-            'v09': self.testsuite.voltages[6][:-2],
-            'refclk': Decimal(f'{self.testsuite.refclk:.6f}'),
-            'osc': Decimal(f'{self.testsuite.osc:.6f}'),
+            'v10': self.testsuite.voltages[5][:-2],
             'git': self.gitsha,
             'flashed': self.flashed,
             'booted' : self.boot_ok,
             'critical': self.critical,
             'failed': ','.join(self.failed_tests),
-            'flash_id': f'{self.testsuite.flashid:016X}',
         })
 
         self.db.add_log({'serial' : self.serial,

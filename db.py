@@ -1,4 +1,5 @@
 import boto3 as aws
+import botocore
 import os
 
 class Database:

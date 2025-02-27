@@ -13,6 +13,7 @@ ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
 PROG_BUFFER     = 0x1000000
+TESTER_PARAM    = 0x0084
 PROG_PROGRESS   = 0x0088
 PROG_LENGTH     = 0x008C
 PROG_LOCATION   = 0x0090
@@ -227,7 +228,9 @@ class JtagClient:
             text[i] = raw[i] & 0x7F
         text = text.decode("utf-8")
         if do_print:
-            logger.info(text)
+            lines = text.split("\n")
+            for line in lines[:-1]:
+                logger.info(line.strip())
         return text
     
     def user_read_console2(self, do_print = False):
@@ -357,6 +360,28 @@ class JtagClient:
         self.user_write_int32(0xFFFFF0, size1)
         self.user_read_id()
 
+    def xilinx_prog_esp32(self, name, addr, total_pages):
+        max_time = 5*120 # 2 minutes
+        file_size = os.stat(name)
+        logger.info(f"Size of file: {file_size.st_size} bytes")
+        self.user_upload(name, PROG_BUFFER)
+        self.user_write_int32(PROG_LENGTH, int(file_size.st_size))
+        self.user_write_int32(PROG_LOCATION, addr)
+        self.user_write_int32(TESTER_TO_DUT, 52)
+        while self.user_read_int32(TESTER_TO_DUT) == 52 and max_time > 0:
+            time.sleep(.1)
+            if self.flash_callback:
+                progress = 100 * self.user_read_int32(PROG_PROGRESS)
+                self.flash_callback(progress/total_pages)
+            max_time -= 1
+
+        if self.user_read_int32(TESTER_TO_DUT) == 52:
+            raise JtagClientException("Test did not complete in time.")
+
+        text = self.user_read_console(True)
+        result = self.user_read_int32(TEST_STATUS)
+        return (result, text)
+
     def xilinx_prog_flash(self, name, addr):
         max_time = 5*120 # 2 minutes
         file_size = os.stat(name)
@@ -381,15 +406,35 @@ class JtagClient:
         result = self.user_read_int32(TEST_STATUS)
         return (result, text)
 
-    def perform_test(self, test_id, max_time = 10):
+    def start_test(self, test_id):
         self.user_write_int32(TESTER_TO_DUT, test_id)
+
+    def complete_test(self):
+        if self.user_read_int32(TESTER_TO_DUT) != 0:
+            raise JtagClientException("Test did not complete in time.")
+        result = self.user_read_int32(TEST_STATUS)
+        return result
+    
+    def perform_test(self, test_id, max_time = 10, log = False, param = None):
+        if param != None:
+            self.user_write_int32(TESTER_PARAM, param)
+        self.user_write_int32(TESTER_TO_DUT, test_id)
+        text = self.user_read_console(log)
         while self.user_read_int32(TESTER_TO_DUT) == test_id and max_time > 0:
             time.sleep(.2)
+            text += self.user_read_console(log)
             max_time -= 1
         if self.user_read_int32(TESTER_TO_DUT) == test_id:
             raise JtagClientException("Test did not complete in time.")
-        text = self.user_read_console()
         result = self.user_read_int32(TEST_STATUS)
         return (result, text)
+
+    def reboot(self, test_id):
+        self.user_write_int32(TESTER_TO_DUT, test_id)
+        text = ""
+        for i in range(15): # 3 seconds
+            time.sleep(.2)
+            text += self.user_read_console(True)
+        return text
 
 # pip3 install opencv-python-headless
