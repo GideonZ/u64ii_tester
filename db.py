@@ -35,13 +35,22 @@ class Database:
             return response['Item']
 
     def add_board(self, dct):
-        response = self.u64ii_boards.put_item(Item = dct)
+        try:
+            response = self.u64ii_boards.put_item(Item = dct)
+        except botocore.errorfactory.ResourceNotFoundException as e:
+            print(e)
 
     def add_test_results(self, dct):
-        response = self.u64ii_tests.put_item(Item = dct)
+        try:
+            response = self.u64ii_tests.put_item(Item = dct)
+        except botocore.errorfactory.ResourceNotFoundException as e:
+            print(e)
 
     def add_log(self, dct):
-        response = self.u64ii_logs.put_item(Item = dct)
+        try:
+            response = self.u64ii_logs.put_item(Item = dct)
+        except botocore.errorfactory.ResourceNotFoundException as e:
+            print(e)
 
 if __name__ == '__main__':
     db = Database()

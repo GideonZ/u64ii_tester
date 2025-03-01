@@ -3,6 +3,7 @@
 import tkinter as tk
 import logging
 import git
+import time
 from tkinter import ttk, messagebox
 import tkinter.scrolledtext as tkscrolled
 from PIL import ImageTk, Image
@@ -137,6 +138,11 @@ class MyGui:
         except JtagClientException as e:
             messagebox.showerror("Failure!", f"Communication Error!\n{e}\nRestart Tester Application!")
             exit()
+        except Exception as e:
+            self.textbox.insert(tk.END, "-> Result: ERROR!\n")
+            self.textbox.insert(tk.END, f"Reason: {e}\n\n")
+            self.critical = True
+            self.errors += 1
 
         if name in self.after:
             try:
@@ -154,6 +160,7 @@ class MyGui:
         return critical
 
     def ExecuteTests(self):
+        self.start_time = time.time()
         self.start_button.configure(state = 'disabled')
         self.progress[0]['value'] = 0
         self.progress[1]['value'] = 0
@@ -219,9 +226,16 @@ class MyGui:
             messagebox.showerror("Reject", "Board has not been programmed due to errors.")
 
         self.testsuite.dut_off()            
+        self.end_time = time.time()
+        self.textbox.insert(tk.END, f"\nElapsed time: {self.end_time - self.start_time:.1f} sec.\n")
         self.textbox.see(tk.END)
         self.window.update()
-        self.write_test_to_db()
+
+        try:
+            self.write_test_to_db()
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+            
         self.start_button.configure(state = 'normal')
 
     def setup(self):
@@ -274,6 +288,7 @@ class MyGui:
         self.start_button = tk.Button(self.window, text="Start!", font=("Liberation Serif", 16))
         self.start_button.grid(columnspan = 2, column = 2, row = 3, sticky = tk.EW, padx = 15, pady = 15)
         self.start_button.bind('<Button-1>', self.StartButtonClick)
+        self.serial_entry.bind('<Return>', self.StartButtonClick)
 
         self.textbox = tkscrolled.ScrolledText(self.window, width = 80, height = 20, wrap='word')
         self.textbox.grid(column = 0, row = 1, padx = 8, pady = 8, sticky="nsew", rowspan = 4)
@@ -303,11 +318,12 @@ class MyGui:
         Ultimate64IITests.add_log_handler(ch)
         JtagClient.add_log_handler(ch)
 
-        welcome_msg = "Welcome to the U64-II Tester.\n1) Attach test harness to board set\n2) Scan Serial Number\n3) Turn on the board\n4) Click 'start!'\n"
+        welcome_msg = "Welcome to the U64-II Tester.\n1) Attach test harness to board set\n2) Turn on the board\n3) Scan Serial Number\n4) Click 'start!'\n"
         messagebox.showinfo("Welcome!", welcome_msg)
 
         self.textbox.insert(tk.END, welcome_msg)
         self.textbox.see(tk.END)
+        self.serial_entry.focus()
         self.window.update()
 
     def run(self):

@@ -146,14 +146,20 @@ class Ultimate64IITests:
         (result, _) = self.dut.perform_test(TEST_WIFI_DOWNLOAD)
         if result != 0:
             raise TestFail(f"Err = {result}")
-        self.dut.flash_callback = self.esp_callback
-        self.dut.xilinx_prog_esp32(esp32_bootloader, 0x00000, 842)
-        self.dut.xilinx_prog_esp32(esp32_partition_table, 0x08000, 842)
-        self.dut.xilinx_prog_esp32(esp32_application, 0x10000, 842)
+        self.dut.flash_callback[0:3] = [self.esp_callback, self.esp_callback, self.esp_callback]
+        self.dut.xilinx_prog_esp32_a(0, esp32_bootloader, 0x00000, 842) # Load
+        self.dut.xilinx_prog_esp32_b(0) # Start
+        self.dut.xilinx_prog_esp32_a(1, esp32_partition_table, 0x08000, 842) # Load
+        self.dut.xilinx_prog_esp32_c(0) # Finish
+        self.dut.xilinx_prog_esp32_b(1) # Start
+        self.dut.xilinx_prog_esp32_a(2, esp32_application, 0x10000, 842) # Load
+        self.dut.xilinx_prog_esp32_c(1) # Finish
+        self.dut.xilinx_prog_esp32_b(2) # Start
+        self.dut.xilinx_prog_esp32_c(2) # Finish
 
     def test_007_all(self):
         """Run All Tests"""
-        (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFFFB)
+        (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFBFB) # No speaker, no userport
         if result != 0:
             raise TestFail(f"Err = {result}")
 
@@ -197,19 +203,22 @@ class Ultimate64IITests:
         # Program the flash in three steps: 1) FPGA, 2) Application, 3) FAT Filesystem
         # Depricated, but let's do it like this now
         #self.dut.download_flash_images(final_fpga, final_appl, final_fat)
-        self.dut.flash_callback = cb[0]
-        self.dut.xilinx_prog_flash(final_fpga, 0x000000)
-        self.dut.flash_callback = cb[1]
-        self.dut.xilinx_prog_flash(final_appl, 0x220000)
-        self.dut.flash_callback = cb[2]
-        self.dut.xilinx_prog_flash(final_fat, 0x400000)
+        self.dut.flash_callback[0:3] = cb
+        self.dut.xilinx_prog_flash_a(2, final_fat, 0x400000) # Preload and setup for next
+        self.dut.xilinx_prog_flash_b(2) # Start flashing section 2
+        self.dut.xilinx_prog_flash_a(1, final_appl, 0x220000) # Load and setup section 1
+        self.dut.xilinx_prog_flash_c(2) # Finish flashing section 2
+        self.dut.xilinx_prog_flash_b(1) # Start flashing section 1
+        self.dut.xilinx_prog_flash_a(0, final_fpga, 0x000000) # Load and setup section 0
+        self.dut.xilinx_prog_flash_c(1) # Finish flashing section
+        self.dut.xilinx_prog_flash_b(0) # Start flashing section 0
+        self.dut.xilinx_prog_flash_c(0) # Finish flashing section 0
 
     def late_099_boot(self):
         """Boot Test"""
         logger.info("Rebooting DUT")
         console = self.dut.reboot(TEST_REBOOT)
-        logger.debug(f"Console Output:\n{console}")
-        return True
+        return "ConfigManager opened flash" in console
 
     def dut_off(self):
         if not self.dut_off:

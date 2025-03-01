@@ -13,6 +13,7 @@ ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
 PROG_BUFFER     = 0x1000000
+PROG_SOURCE     = 0x0080
 TESTER_PARAM    = 0x0084
 PROG_PROGRESS   = 0x0088
 PROG_LENGTH     = 0x008C
@@ -47,6 +48,8 @@ class JtagClient:
         self.jtag.configure(url)
         self.jtag.reset()
         self._reverse = None
+        self.file_size = [0, 0, 0, 0]
+        self.flash_callback = [None, None, None, None]
 
     @staticmethod
     def add_log_handler(ch):
@@ -247,6 +250,7 @@ class JtagClient:
     
     def user_upload(self, name, addr):
         bytes_read = 0
+        checksum = 0
         with open(name, "rb") as fi:
             logger.info(f"Uploading {name} to address {addr:08x}")
             while(True):
@@ -256,7 +260,12 @@ class JtagClient:
                 bytes_read += len(buffer)
                 self.user_write_memory(addr, buffer + b'\x00\x00\x00\x00\x00\x00\x00\x00')
                 addr += 16384
+                #l4 = len(buffer) // 4
+                #for i in range(l4):
+                #    checksum += struct.unpack("<L", buffer[i*4:i*4+4])[0]
+
             logger.info(f"Uploaded {bytes_read:06x} bytes.")
+            #logger.info(f"Checksum: {checksum & 0xFFFFFFFF:08x}")
 
         if bytes_read == 0:
             logger.error(f"Reading file {name} failed -> Can't upload to board.")
@@ -281,11 +290,12 @@ class JtagClient:
             self.user_set_outputs(0x00) # Reset
         self.user_write_memory(0xFFFFF0, b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00') # Clear magic for flashing
         self.user_write_memory(0xFFF8, magic)
-        print(f"{self.user_read_int32(0xFFF8):08x}")
-        print(f"{self.user_read_int32(0xFFFC):08x}")
+        #print(f"{self.user_read_int32(0xFFF8):08x}")
+        value = self.user_read_int32(0xFFFC)
         if reset:
             self.user_set_outputs(0x80) # Unreset
-    
+        return value
+
     def user_write_memory(self, addr, buffer):
         addrbytes = struct.pack("<L", addr)
         command = bytearray([ addrbytes[0], 4, addrbytes[1], 5, addrbytes[2], 6, addrbytes[3], 7, 0x80, 0x01])
@@ -359,52 +369,49 @@ class JtagClient:
         size1 = self.user_upload(fpga, 0x1000000)
         self.user_write_int32(0xFFFFF0, size1)
         self.user_read_id()
-
-    def xilinx_prog_esp32(self, name, addr, total_pages):
-        max_time = 5*120 # 2 minutes
-        file_size = os.stat(name)
-        logger.info(f"Size of file: {file_size.st_size} bytes")
-        self.user_upload(name, PROG_BUFFER)
-        self.user_write_int32(PROG_LENGTH, int(file_size.st_size))
+        
+    def xilinx_prog_flash_a(self, index, name, addr):
+        self.file_size[index] = os.stat(name).st_size
+        logger.info(f"Size of file: {self.file_size[index]} bytes")
+        self.user_upload(name, PROG_BUFFER + 4*1024*1024*index)
+        self.user_write_int32(PROG_LENGTH, int(self.file_size[index]))
         self.user_write_int32(PROG_LOCATION, addr)
-        self.user_write_int32(TESTER_TO_DUT, 52)
-        while self.user_read_int32(TESTER_TO_DUT) == 52 and max_time > 0:
+        self.user_write_int32(PROG_SOURCE, PROG_BUFFER + 4*1024*1024*index)
+        return self.user_read_int32(TESTER_TO_DUT)
+
+    def xilinx_prog_flash_b(self, _index, command = 50):
+        self.user_write_int32(TESTER_TO_DUT, command)
+        return self.user_read_int32(TESTER_TO_DUT)
+    
+    def xilinx_prog_flash_c(self, index, command = 50):
+        max_time = 5*120 # 2 minutes
+        pages = (self.file_size[index] + 255) // 256 #Callback for every page
+
+        while self.user_read_int32(TESTER_TO_DUT) == command and max_time > 0:
             time.sleep(.1)
-            if self.flash_callback:
+            if self.flash_callback[index]:
                 progress = 100 * self.user_read_int32(PROG_PROGRESS)
-                self.flash_callback(progress/total_pages)
+                self.flash_callback[index](progress/pages)
             max_time -= 1
 
-        if self.user_read_int32(TESTER_TO_DUT) == 52:
+        if self.user_read_int32(TESTER_TO_DUT) == command:
             raise JtagClientException("Test did not complete in time.")
 
+        self.flash_callback[index](100.0)
         text = self.user_read_console(True)
         result = self.user_read_int32(TEST_STATUS)
         return (result, text)
 
-    def xilinx_prog_flash(self, name, addr):
-        max_time = 5*120 # 2 minutes
-        file_size = os.stat(name)
-        logger.info(f"Size of file: {file_size.st_size} bytes")
-        pages = (file_size.st_size + 255) // 256 #Callback for every page
-        self.user_upload(name, PROG_BUFFER)
-        self.user_write_int32(PROG_LENGTH, int(file_size.st_size))
-        self.user_write_int32(PROG_LOCATION, addr)
+    def xilinx_prog_esp32_a(self, index, name, addr, total_pages):
+        ret = self.xilinx_prog_flash_a(index, name, addr)
+        self.file_size[index] = total_pages * 256
+        return ret
+    
+    def xilinx_prog_esp32_b(self, index):
+        return self.xilinx_prog_flash_b(index, 52)
 
-        self.user_write_int32(TESTER_TO_DUT, 50)
-        while self.user_read_int32(TESTER_TO_DUT) == 50 and max_time > 0:
-            time.sleep(.1)
-            if self.flash_callback:
-                progress = 100 * self.user_read_int32(PROG_PROGRESS)
-                self.flash_callback(progress/pages)
-            max_time -= 1
-
-        if self.user_read_int32(TESTER_TO_DUT) == 50:
-            raise JtagClientException("Test did not complete in time.")
-
-        text = self.user_read_console(True)
-        result = self.user_read_int32(TEST_STATUS)
-        return (result, text)
+    def xilinx_prog_esp32_c(self, index):
+        self.xilinx_prog_flash_c(index, 52)
 
     def start_test(self, test_id):
         self.user_write_int32(TESTER_TO_DUT, test_id)
@@ -431,6 +438,11 @@ class JtagClient:
 
     def reboot(self, test_id):
         self.user_write_int32(TESTER_TO_DUT, test_id)
+        logger.info(f"ID before reboot: {self.user_read_id()}")
+        self.jtag.reset()
+        time.sleep(3.5)
+        self.jtag.reset()
+        logger.info(f"ID after reboot: {self.user_read_id()}")
         text = ""
         for i in range(15): # 3 seconds
             time.sleep(.2)
