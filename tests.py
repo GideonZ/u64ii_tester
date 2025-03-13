@@ -43,6 +43,8 @@ TEST_USB_INIT = 15
 TEST_ETHERNET = 16
 TEST_OFF = 17
 TEST_REBOOT = 18
+TEST_SET_SERIAL = 19
+TEST_GET_SERIAL = 20
 TEST_WIFI_DOWNLOAD = 51
 TEST_WIFI_FLASH = 52
 
@@ -63,6 +65,7 @@ class Ultimate64IITests:
         self.unique = 0
         self.voltages = [ 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A' ]
         self.revision = 0
+        self.serial = ""
         self.off = False
     
     def read_voltages(self):
@@ -160,6 +163,8 @@ class Ultimate64IITests:
     def test_007_all(self):
         """Run All Tests"""
         (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFBFB) # No speaker, no userport
+        #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFFFB) # no userport
+        #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0x3000) # nothing except wifi
         if result != 0:
             raise TestFail(f"Err = {result}")
 
@@ -167,6 +172,14 @@ class Ultimate64IITests:
         """Get Voltages"""
         self.read_voltages()
         logger.info(f"Voltages: {self.voltages}")
+
+    def test_009a_get_serial(self):
+        """Get Serial Number"""
+        (result, _) = self.dut.perform_test(TEST_GET_SERIAL, 10, True)
+        
+    def test_009_serial_number(self):
+        """Set Serial Number"""
+        (result, _) = self.dut.perform_test(TEST_SET_SERIAL, 10, True, self.serial)
 
     def _test_008_ethernet(self):
         """Ethernet"""

@@ -192,6 +192,7 @@ class MyGui:
         self.critical = False
         self.failed_tests = [ ]
         self.testsuite.reset_variables()
+        self.testsuite.serial = self.serial
 
         for name, _ in self.functions.items():
             self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_err)

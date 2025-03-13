@@ -21,6 +21,7 @@ PROG_LOCATION   = 0x0090
 DUT_TO_TESTER   = 0x0094
 TESTER_TO_DUT	= 0x0098
 TEST_STATUS		= 0x009C
+SERIAL_NUMBER   = 0x00B0
 
 XILINX_USER1    = 0x02
 XILINX_USER2    = 0x03
@@ -423,7 +424,11 @@ class JtagClient:
         return result
     
     def perform_test(self, test_id, max_time = 10, log = False, param = None):
-        if param != None:
+        if isinstance(param, str):
+            self.user_write_int32(TESTER_PARAM, len(param))
+            bytes = param.encode("utf-8") + (b'\0' * 16)
+            self.user_write_memory(SERIAL_NUMBER, bytes)
+        elif param != None:
             self.user_write_int32(TESTER_PARAM, param)
         self.user_write_int32(TESTER_TO_DUT, test_id)
         text = self.user_read_console(log)
