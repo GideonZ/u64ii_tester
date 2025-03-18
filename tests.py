@@ -16,14 +16,14 @@ class TestFailCritical(TestFail):
 logger = logging.getLogger('Tests')
 logger.setLevel(logging.DEBUG)
 
-dut_fpga  = '/home/gideon/proj/ult64/target/u64ii_loader/u64ii_loader.runs/impl_1/u64_mk2_loader.bit'
-dut_appl  = '/home/gideon/proj/ult64/ultimate/target/u64ii/riscv/factorytest/result/factorytest.bin'
-final_fpga = '/home/gideon/proj/ult64/target/u64_artix/u64_artix.runs/impl_1/u64_mk2_artix.bit'
-final_appl = '/home/gideon/proj/ult64/ultimate/target/u64ii/riscv/ultimate/result/ultimate.app'
+dut_fpga  = 'binaries/u64_mk2_loader.bit'
+dut_appl  = 'binaries/factorytest.bin'
+final_fpga = 'binaries/u64_mk2_artix.bit'
+final_appl = 'binaries/ultimate.app'
 final_fat = 'binaries/fat.bin'
-esp32_bootloader      = '/home/gideon/proj/ult64/ultimate/software/u64ctrl/build/bootloader/bootloader.bin'
-esp32_partition_table = '/home/gideon/proj/ult64/ultimate/software/u64ctrl/build/partition_table/partition-table.bin'
-esp32_application     = '/home/gideon/proj/ult64/ultimate/software/u64ctrl/build/u64ctrl.bin'
+esp32_bootloader      = 'binaries/bootloader.bin'
+esp32_partition_table = 'binaries/partition-table.bin'
+esp32_application     = 'binaries/u64ctrl.bin'
 
 TEST_KEYBOARD = 1
 TEST_IEC = 2
@@ -45,6 +45,7 @@ TEST_OFF = 17
 TEST_REBOOT = 18
 TEST_SET_SERIAL = 19
 TEST_GET_SERIAL = 20
+TEST_CLEAR_CONFIG = 21
 TEST_WIFI_DOWNLOAD = 51
 TEST_WIFI_FLASH = 52
 
@@ -162,8 +163,8 @@ class Ultimate64IITests:
 
     def test_007_all(self):
         """Run All Tests"""
-        (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFBFB) # No speaker, no userport
-        #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFFFB) # no userport
+        #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFBFB) # No speaker, no userport
+        (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFFFB) # no userport
         #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0x3000) # nothing except wifi
         if result != 0:
             raise TestFail(f"Err = {result}")
@@ -173,13 +174,17 @@ class Ultimate64IITests:
         self.read_voltages()
         logger.info(f"Voltages: {self.voltages}")
 
-    def test_009a_get_serial(self):
-        """Get Serial Number"""
-        (result, _) = self.dut.perform_test(TEST_GET_SERIAL, 10, True)
-        
     def test_009_serial_number(self):
         """Set Serial Number"""
         (result, _) = self.dut.perform_test(TEST_SET_SERIAL, 10, True, self.serial)
+
+    def test_009a_get_serial(self):
+        """Get Serial Number"""
+        (result, _) = self.dut.perform_test(TEST_GET_SERIAL, 10, True)
+
+    def _test_010_clear_config(self):
+        """Clear Config"""
+        (result, _) = self.dut.perform_test(TEST_CLEAR_CONFIG, 10, True)
 
     def _test_008_ethernet(self):
         """Ethernet"""

@@ -165,6 +165,7 @@ class MyGui:
         self.progress[0]['value'] = 0
         self.progress[1]['value'] = 0
         self.progress[2]['value'] = 0
+        self.progress[3]['value'] = 0
         self.textbox.delete(1.0, tk.END)
         self.window.update()
 

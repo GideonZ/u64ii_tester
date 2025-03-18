@@ -398,7 +398,8 @@ class JtagClient:
         if self.user_read_int32(TESTER_TO_DUT) == command:
             raise JtagClientException("Test did not complete in time.")
 
-        self.flash_callback[index](100.0)
+        if pages > 100: # avoid this for start of ESP32 (dirty hack)
+            self.flash_callback[index](100.0)
         text = self.user_read_console(True)
         result = self.user_read_int32(TEST_STATUS)
         return (result, text)
