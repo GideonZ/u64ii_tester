@@ -4,6 +4,7 @@ import tkinter as tk
 import logging
 import git
 import time
+import cv2
 from tkinter import ttk, messagebox
 import tkinter.scrolledtext as tkscrolled
 from PIL import ImageTk, Image
@@ -209,6 +210,12 @@ class MyGui:
                     if self.RunOneTest(name): # Returns 'true' when a critical error occurred (could also have re-raised)
                         break
 
+        try:
+            _res,frame = self.capture.read()
+            cv2.imwrite(f"images/{self.serial}.png", frame)
+        except Exception as e:
+            self.textbox.insert(tk.END, str(e))
+
         # If all tests are successful, the board can be flashed
         if self.errors == 0: ## zero!
             self.testsuite.program_flash([self.FlashUpdateFPGA, self.FlashUpdateAppl, self.FlashUpdateFAT])
@@ -326,6 +333,11 @@ class MyGui:
         self.textbox.insert(tk.END, welcome_msg)
         self.textbox.see(tk.END)
         self.serial_entry.focus()
+        self.window.update()
+        self.textbox.insert(tk.END, "Opening Video capture device\n")
+        self.window.update()
+        self.capture = cv2.VideoCapture(0)
+        self.textbox.insert(tk.END, "Video capture opened\n")
         self.window.update()
 
     def run(self):

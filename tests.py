@@ -46,6 +46,7 @@ TEST_REBOOT = 18
 TEST_SET_SERIAL = 19
 TEST_GET_SERIAL = 20
 TEST_CLEAR_CONFIG = 21
+TEST_CLEAR_FLASH = 22
 TEST_WIFI_DOWNLOAD = 51
 TEST_WIFI_FLASH = 52
 
@@ -216,11 +217,15 @@ class Ultimate64IITests:
         if result != 0:
             raise TestFail(f"Cassette I/O fault. Err = {result}")
 
+    def _test_025_clear_flash(self):
+        """Clear Flash"""
+        (result, _) = self.dut.perform_test(TEST_CLEAR_FLASH, 20, True)
+        if result != 0:
+            raise TestFail(f"Flash clear failed")
+        
     def program_flash(self, cb = [None, None, None]):
         """Program Flash!"""
         # Program the flash in three steps: 1) FPGA, 2) Application, 3) FAT Filesystem
-        # Depricated, but let's do it like this now
-        #self.dut.download_flash_images(final_fpga, final_appl, final_fat)
         self.dut.flash_callback[0:3] = cb
         self.dut.xilinx_prog_flash_a(2, final_fat, 0x400000) # Preload and setup for next
         self.dut.xilinx_prog_flash_b(2) # Start flashing section 2
@@ -236,7 +241,7 @@ class Ultimate64IITests:
         """Boot Test"""
         logger.info("Rebooting DUT")
         console = self.dut.reboot(TEST_REBOOT)
-        return "ConfigManager opened flash" in console
+        return "onfigManager opened flash" in console
 
     def dut_off(self):
         if not self.dut_off:
