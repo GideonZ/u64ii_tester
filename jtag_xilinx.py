@@ -446,11 +446,13 @@ class JtagClient:
         self.user_write_int32(TESTER_TO_DUT, test_id)
         logger.info(f"ID before reboot: {self.user_read_id()}")
         self.jtag.reset()
+        self.jtag.sync()
         time.sleep(3.5)
         self.jtag.reset()
+        self.jtag.sync()
         logger.info(f"ID after reboot: {self.user_read_id()}")
         text = ""
-        for i in range(15): # 3 seconds
+        for i in range(10): # 2 seconds
             time.sleep(.2)
             text += self.user_read_console(True)
         return text
