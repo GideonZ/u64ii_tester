@@ -165,7 +165,8 @@ class Ultimate64IITests:
     def test_007_all(self):
         """Run All Tests"""
         #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFBFB) # No speaker, no userport
-        (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFFFB) # no userport
+        #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFBFF) # no speaker
+        (result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0xFFFF) # ALL
         #(result, _) = self.dut.perform_test(TEST_ALL, 50, True, 0x3000) # nothing except wifi
         if result != 0:
             raise TestFail(f"Err = {result}")
