@@ -226,11 +226,15 @@ class MyGui:
             if not self.boot_ok:
                 self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_fail)
                 self.textbox.insert(tk.END, "\n!!! BOARD DOESN'T BOOT !!!\n\n")
+                self.save_log()
                 messagebox.showerror("Reject", "Board doesn't boot correctly after Flashing.")
             else:
                 self.test_icon_canvases[name].itemconfig(self.test_icon_images[name], image = self.img_pass)
                 self.textbox.insert(tk.END, "\n*** BOARD SUCCESSFULLY TESTED AND PROGRAMMED! ***\n\n")
+                self.save_log()
         else:
+            self.textbox.insert(tk.END, "\n*** Board has not been programmed due to errors. ***\n\n")
+            self.save_log()
             self.testsuite.dut_off()            
             messagebox.showerror("Reject", "Board has not been programmed due to errors.")
 
@@ -379,6 +383,10 @@ class MyGui:
             self.errors -= 1
             # Rerun test!
             self.RunOneTest('test_001_regulators')
+
+    def save_log(self):
+        with open(f"logs/{self.serial}.txt", "a") as logfile:
+            logfile.write(self.textbox.get("1.0", "end-1c"))
 
     def write_test_to_db(self):
         # Write board to board table
