@@ -332,6 +332,7 @@ class MyGui:
         JtagClient.add_log_handler(ch)
 
         welcome_msg = "Welcome to the U64-II Tester.\n1) Attach test harness to board set\n2) Turn on the board\n3) Scan Serial Number\n4) Click 'start!'\n"
+        welcome_msg += "\nGIT VERSION: " + self.gitsha[1:10] + "\n"
         messagebox.showinfo("Welcome!", welcome_msg)
 
         self.textbox.insert(tk.END, welcome_msg)
